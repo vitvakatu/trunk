@@ -1,0 +1,11 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[[headers]]
+name = "cross-origin-embedder-policy"
+value = "require-corp"
+
+[[headers]]
+name = "cross-origin-opener-policy"
+value = "same-origin"

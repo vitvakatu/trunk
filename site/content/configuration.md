@@ -41,3 +41,19 @@ The following is a snippet from the `Trunk.toml` file in the Trunk repo:
 rewrite = "/api/v1/"
 backend = "http://localhost:9000/"
 ```
+
+# Headers
+
+Trunk supports the ability to set custom response headers for the `serve` command. This is useful 
+for setting headers such as `Cross-Origin-Opener-Policy` and `Cross-Origin-Embedder-Policy` which 
+are required for using the `SharedArrayBuffer` type in the browser.
+
+The `Trunk.toml` config file accepts multiple `[[headers]]` sections, which allows for multiple 
+headers to be configured. Each section contains `name` and `value` fields, which correspond to the
+header name and value of the header, respectively.
+
+```toml
+[[headers]]
+name = "cross-origin-embedder-policy"
+value = "require-corp"
+```

@@ -189,6 +189,16 @@ pub struct ConfigOptsHook {
     pub command_arguments: Vec<String>,
 }
 
+/// Config options for the custom headers.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ConfigOptsHeader {
+    /// The name of the header.
+    pub name: String,
+    /// The value of the header.
+    pub value: String,
+}
+
 /// Deserialize a Uri from a string.
 fn deserialize_uri<'de, D, T>(data: D) -> std::result::Result<T, D::Error>
 where
@@ -211,6 +221,7 @@ pub struct ConfigOpts {
     pub tools: Option<ConfigOptsTools>,
     pub proxy: Option<Vec<ConfigOptsProxy>>,
     pub hooks: Option<Vec<ConfigOptsHook>>,
+    pub headers: Option<Vec<ConfigOptsHeader>>,
 }
 
 impl ConfigOpts {
@@ -252,6 +263,7 @@ impl ConfigOpts {
         config: Option<PathBuf>,
     ) -> Result<Arc<RtcServe>> {
         let base_layer = Self::file_and_env_layers(config)?;
+        let headers = base_layer.headers.clone().unwrap_or_default();
         let build_layer = Self::cli_opts_layer_build(cli_build, base_layer);
         let watch_layer = Self::cli_opts_layer_watch(cli_watch, build_layer);
         let serve_layer = Self::cli_opts_layer_serve(cli_serve, watch_layer);
@@ -267,6 +279,7 @@ impl ConfigOpts {
             tools_opts,
             hooks_opts,
             serve_layer.proxy,
+            headers,
         )?))
     }
 
@@ -305,6 +318,7 @@ impl ConfigOpts {
             tools: None,
             proxy: None,
             hooks: None,
+            headers: None,
         };
         Self::merge(cfg_base, cfg_build)
     }
@@ -322,6 +336,7 @@ impl ConfigOpts {
             tools: None,
             proxy: None,
             hooks: None,
+            headers: None,
         };
         Self::merge(cfg_base, cfg)
     }
@@ -345,6 +360,7 @@ impl ConfigOpts {
             tools: None,
             proxy: None,
             hooks: None,
+            headers: None,
         };
         Self::merge(cfg_base, cfg)
     }
@@ -362,6 +378,7 @@ impl ConfigOpts {
             tools: None,
             proxy: None,
             hooks: None,
+            headers: None,
         };
         Self::merge(cfg_base, cfg)
     }
@@ -461,6 +478,7 @@ impl ConfigOpts {
             tools: Some(envy::prefixed("TRUNK_TOOLS_").from_env()?),
             proxy: None,
             hooks: None,
+            headers: None,
         })
     }
 
@@ -541,6 +559,11 @@ impl ConfigOpts {
             (Some(_), Some(g)) => Some(g), // No meshing/merging. Only take the greater value.
         };
         greater.hooks = match (lesser.hooks.take(), greater.hooks.take()) {
+            (None, None) => None,
+            (Some(val), None) | (None, Some(val)) => Some(val),
+            (Some(_), Some(g)) => Some(g), // No meshing/merging. Only take the greater value.
+        };
+        greater.headers = match (lesser.headers.take(), greater.headers.take()) {
             (None, None) => None,
             (Some(val), None) | (None, Some(val)) => Some(val),
             (Some(_), Some(g)) => Some(g), // No meshing/merging. Only take the greater value.

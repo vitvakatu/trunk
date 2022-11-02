@@ -1,21 +1,24 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use axum::body::{self, Body};
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 use axum::extract::Extension;
-use axum::http::StatusCode;
+use axum::http::header::HeaderName;
+use axum::http::{HeaderValue, StatusCode};
 use axum::response::Response;
 use axum::routing::{get, get_service, Router};
 use axum::Server;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::common::SERVER;
-use crate::config::RtcServe;
+use crate::config::{ConfigOptsHeader, RtcServe};
 use crate::proxy::{ProxyHandlerHttp, ProxyHandlerWebSocket};
 use crate::watch::WatchSystem;
 
@@ -183,21 +186,34 @@ fn router(state: Arc<State>, cfg: Arc<RtcServe>) -> Router {
             .unwrap_or(&state.public_url)
     };
 
-    let mut router = Router::new()
-        .fallback(
-            Router::new().nest(
-                public_route,
-                get_service(
-                    ServeDir::new(&state.dist_dir)
-                        .fallback(ServeFile::new(&state.dist_dir.join(INDEX_HTML))),
-                )
-                .handle_error(|error| async move {
-                    tracing::error!(?error, "failed serving static file");
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })
-                .layer(TraceLayer::new_for_http()),
-            ),
+    let mut fallback_router = Router::new().nest(
+        public_route,
+        get_service(
+            ServeDir::new(&state.dist_dir)
+                .fallback(ServeFile::new(&state.dist_dir.join(INDEX_HTML))),
         )
+        .handle_error(|error| async move {
+            tracing::error!(?error, "failed serving static file");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
+        .layer(TraceLayer::new_for_http()),
+    );
+    for header_cfg in cfg.headers.iter() {
+        match set_response_header_layer(header_cfg) {
+            Ok(layer) => {
+                fallback_router = fallback_router.layer(layer);
+            }
+            Err(err) => {
+                tracing::warn!(
+                    "Can't use custom header with name `{}`: {}",
+                    header_cfg.name,
+                    err
+                );
+            }
+        }
+    }
+    let mut router = Router::new()
+        .fallback(fallback_router)
         .route(
             "/_trunk/ws",
             get(
@@ -309,4 +325,12 @@ impl axum::response::IntoResponse for ServerError {
         *res.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
         res
     }
+}
+
+fn set_response_header_layer(
+    config: &ConfigOptsHeader,
+) -> Result<SetResponseHeaderLayer<HeaderValue>> {
+    let name = HeaderName::from_str(&config.name)?;
+    let value = HeaderValue::from_str(&config.value)?;
+    Ok(SetResponseHeaderLayer::overriding(name, value))
 }

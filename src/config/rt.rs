@@ -6,6 +6,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, ensure, Context, Result};
 use axum::http::Uri;
 
+use crate::config::models::ConfigOptsHeader;
 use crate::config::{
     ConfigOptsBuild, ConfigOptsClean, ConfigOptsHook, ConfigOptsProxy, ConfigOptsServe,
     ConfigOptsTools, ConfigOptsWatch,
@@ -218,6 +219,8 @@ pub struct RtcServe {
     pub proxies: Option<Vec<ConfigOptsProxy>>,
     /// Whether to disable auto-reload of the web page when a build completes.
     pub no_autoreload: bool,
+    /// Custom headers to add to all responses.
+    pub headers: Vec<ConfigOptsHeader>,
 }
 
 impl RtcServe {
@@ -228,6 +231,7 @@ impl RtcServe {
         tools: ConfigOptsTools,
         hooks: Vec<ConfigOptsHook>,
         proxies: Option<Vec<ConfigOptsProxy>>,
+        headers: Vec<ConfigOptsHeader>,
     ) -> Result<Self> {
         let watch = Arc::new(RtcWatch::new(
             build_opts,
@@ -247,6 +251,7 @@ impl RtcServe {
             proxy_ws: opts.proxy_ws,
             proxies,
             no_autoreload: opts.no_autoreload,
+            headers,
         })
     }
 }
